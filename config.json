@@ -1,0 +1,15 @@
+{
+    "serial_port": "COM2",
+    "email_address": "xpjosh10@gmail.com",
+    "email_password": "trcp dzzd tsad rdpx",
+    "recipients": [
+        "xpjosh10@gmail.com",
+        "layfonalseif10@gmail.com"
+    ],
+    "phone_numbers": [
+        "+919920081996"
+    ],
+    "twilio_sid": "AC7137877409d3dd8240524a35717f4bdc",
+    "twilio_auth_token": "90d4afcb4c61da8c87c97d29fab258b1",
+    "twilio_phone_number": "+1 513 822 3981"
+}

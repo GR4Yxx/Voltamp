@@ -9,10 +9,11 @@ BAUD_RATE = 9600
 
 # Messages to send
 messages = [
-    'Message 1 from device',
-    'Message 2 from device',
-    'Message 3 from device',
-    'Message 4 from device'
+    'High temperature',
+    'Low temparture',
+    'High Light',
+    'Low Moisture levels'
+
 ]
 
 def simulate_serial_device():
@@ -21,7 +22,7 @@ def simulate_serial_device():
         message = random.choice(messages)
         ser.write((message + '\n').encode('utf-8'))
         print(f"Simulated device sent: {message}")
-        time.sleep(random.randint(1, 5))  # Send a message every 1-5 seconds
+        time.sleep(random.randint(10, 20))  # Send a message every 1-5 seconds
 
 if __name__ == '__main__':
     threading.Thread(target=simulate_serial_device).start()
