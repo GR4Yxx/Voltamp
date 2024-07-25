@@ -1,3 +1,4 @@
 @echo off
-python ui\main.py
+call .venv\Scripts\activate.bat
+python lib\main.py
 pause
