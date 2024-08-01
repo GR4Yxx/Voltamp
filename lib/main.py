@@ -8,6 +8,7 @@ import time
 import threading
 import json
 import sys
+import re
 from datetime import datetime
 
 # Configuration defaults
@@ -129,8 +130,9 @@ def start_script(serial_port, email_address, email_password, recipients, phone_n
         while True:
             if ser.in_waiting > 0:
                 message = ser.readline().decode('utf-8').strip()
-                if 'at' in message:
-                    continue
+                message = re.sub(r'at\+cmgs="[^"]*"\r', '', message).strip()
+                message = message.rstrip().rstrip('\u001a')
+
                 log_message(f"Received message: {message}")
                 received_timestamp = datetime.now()
                 rec_formatted_timestamp = received_timestamp.strftime("%dth %B, %Y at %H:%M")
