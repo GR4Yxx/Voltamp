@@ -129,6 +129,8 @@ def start_script(serial_port, email_address, email_password, recipients, phone_n
         while True:
             if ser.in_waiting > 0:
                 message = ser.readline().decode('utf-8').strip()
+                if 'at' in message:
+                    continue
                 log_message(f"Received message: {message}")
                 received_timestamp = datetime.now()
                 rec_formatted_timestamp = received_timestamp.strftime("%dth %B, %Y at %H:%M")
