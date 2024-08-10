@@ -85,7 +85,7 @@ def save_unsent_message(message, received_timestamp):
         with open(UNSENT_MESSAGES_FILE, 'w') as file:
             json.dump(unsent_messages, file, indent=4)
 
-def resend_unsent_messages(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
+def resend_unsent_messages(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number, use_twilio):
     with file_lock:
         if os.path.exists(UNSENT_MESSAGES_FILE):
             with open(UNSENT_MESSAGES_FILE, 'r') as file:
@@ -99,11 +99,23 @@ def resend_unsent_messages(recipients, phone_numbers, twilio_sid, twilio_auth_to
                     sent_formatted_timestamp = sent_timestamp.strftime("%dth %B, %Y at %H:%M")
                     email_body = f"Message: {message}\nReceived at: {received_timestamp}\nSent at: {sent_formatted_timestamp}\n\nNote: This message was delayed due to network issues."
                     sms_body = f"Msg: {message}\nRecv: {received_timestamp}\nSent: {sent_formatted_timestamp}\nNote: Msg delayed due to network issues."
-                    if send_email('Volt Amp Notification', email_body, recipients, FIXED_EMAIL_ADDRESS, FIXED_EMAIL_PASSWORD) and send_sms(sms_body, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
-                        message_info['sent_timestamp'] = sent_formatted_timestamp
-                        log_message(f"Resent delayed message: {message}")
+
+                    if use_twilio:
+                        # Send both email and SMS if Twilio is enabled
+                        if send_email('Volt Amp Notification', email_body, recipients, FIXED_EMAIL_ADDRESS, FIXED_EMAIL_PASSWORD) and send_sms(sms_body, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
+                            message_info['sent_timestamp'] = sent_formatted_timestamp
+                            log_message(f"Resent delayed message: {message}")
+                        else:
+                            remaining_messages.append(message_info)
                     else:
-                        remaining_messages.append(message_info)
+                        # Send email only
+                        if send_email('Volt Amp Notification', email_body, recipients, FIXED_EMAIL_ADDRESS, FIXED_EMAIL_PASSWORD):
+                            message_info['sent_timestamp'] = sent_formatted_timestamp
+                            log_message(f"Resent delayed message: {message}")
+                        else:
+                            remaining_messages.append(message_info)
+
+                # Save remaining unsent messages back to the file
                 with open(UNSENT_MESSAGES_FILE, 'w') as file:
                     json.dump(remaining_messages, file, indent=4)
 
@@ -232,7 +244,7 @@ if '--nogui' in sys.argv:
 else:
     # Create the main application window
     root = tk.Tk()
-    root.title("Serial Message Processor")
+    root.title("VoltAmp Services")
 
     # Initialize use_twilio after root window creation
     use_twilio = tk.BooleanVar(value=False)
