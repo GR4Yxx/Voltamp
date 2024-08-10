@@ -15,8 +15,8 @@ from datetime import datetime
 DEFAULT_SERIAL_PORT = 'COM4'
 BAUD_RATE = 9600
 CONFIG_FILE = 'config.json'
-DEFAULT_EMAIL_ADDRESS = 'your_email@gmail.com'
-DEFAULT_EMAIL_PASSWORD = 'your_app_password'  # Use the app password
+FIXED_EMAIL_ADDRESS = 'xpjosh10@gmail.com'  # Replace with your fixed email
+FIXED_EMAIL_PASSWORD = 'trcp dzzd tsad rdpx'    # Replace with your fixed app password
 DEFAULT_RECIPIENTS = ['recipient1@example.com', 'recipient2@example.com']
 DEFAULT_PHONE_NUMBERS = ['+1234567890', '+0987654321']
 DEFAULT_TWILIO_SID = 'your_twilio_sid'
@@ -85,7 +85,7 @@ def save_unsent_message(message, received_timestamp):
         with open(UNSENT_MESSAGES_FILE, 'w') as file:
             json.dump(unsent_messages, file, indent=4)
 
-def resend_unsent_messages(email_address, email_password, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
+def resend_unsent_messages(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
     with file_lock:
         if os.path.exists(UNSENT_MESSAGES_FILE):
             with open(UNSENT_MESSAGES_FILE, 'r') as file:
@@ -99,7 +99,7 @@ def resend_unsent_messages(email_address, email_password, recipients, phone_numb
                     sent_formatted_timestamp = sent_timestamp.strftime("%dth %B, %Y at %H:%M")
                     email_body = f"Message: {message}\nReceived at: {received_timestamp}\nSent at: {sent_formatted_timestamp}\n\nNote: This message was delayed due to network issues."
                     sms_body = f"Msg: {message}\nRecv: {received_timestamp}\nSent: {sent_formatted_timestamp}\nNote: Msg delayed due to network issues."
-                    if send_email('Volt Amp Notification', email_body, recipients, email_address, email_password) and send_sms(sms_body, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
+                    if send_email('Volt Amp Notification', email_body, recipients, FIXED_EMAIL_ADDRESS, FIXED_EMAIL_PASSWORD) and send_sms(sms_body, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
                         message_info['sent_timestamp'] = sent_formatted_timestamp
                         log_message(f"Resent delayed message: {message}")
                     else:
@@ -114,19 +114,19 @@ def check_network():
     except requests.ConnectionError:
         return False
 
-def network_monitor(email_address, email_password, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
+def network_monitor(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
     while True:
         if check_network():
-            resend_unsent_messages(email_address, email_password, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number)
+            resend_unsent_messages(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number)
         time.sleep(60)  # Check network connectivity every 60 seconds
 
-def start_script(serial_port, email_address, email_password, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number):
+def start_script(serial_port, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number, use_twilio):
     global ser
     ser = serial.Serial(serial_port, BAUD_RATE, timeout=1)
     log_message("Script started")
 
     def main_loop():
-        resend_unsent_messages(email_address, email_password, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number)
+        resend_unsent_messages(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number)
         while True:
             if ser.in_waiting > 0:
                 message = ser.readline().decode('utf-8').strip()
@@ -138,16 +138,22 @@ def start_script(serial_port, email_address, email_password, recipients, phone_n
                 rec_formatted_timestamp = received_timestamp.strftime("%dth %B, %Y at %H:%M")
                 email_body = f"Message: {message}\nReceived at: {rec_formatted_timestamp}\nSent at: {rec_formatted_timestamp}"
                 sms_body = f"Msg: {message}\nRecv: {rec_formatted_timestamp}\nSent: {rec_formatted_timestamp}"
-                if not (send_email('Volt Amp Notification', email_body, recipients, email_address, email_password) and send_sms(sms_body, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number)):
-                    save_unsent_message(message, rec_formatted_timestamp)
+                if use_twilio:
+                    # Send both email and SMS
+                    if not (send_email('Volt Amp Notification', email_body, recipients, FIXED_EMAIL_ADDRESS, FIXED_EMAIL_PASSWORD) and send_sms(sms_body, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number)):
+                        save_unsent_message(message, rec_formatted_timestamp)
                 else:
-                    sent_timestamp = datetime.now()
-                    sent_formatted_timestamp = sent_timestamp.strftime("%dth %B, %Y at %H:%M")
-                    log_message(f"Message sent at {sent_formatted_timestamp}, received at {rec_formatted_timestamp}")
+                    # Send email only
+                    if not send_email('Volt Amp Notification', email_body, recipients, FIXED_EMAIL_ADDRESS, FIXED_EMAIL_PASSWORD):
+                        save_unsent_message(message, rec_formatted_timestamp)
+
+                sent_timestamp = datetime.now()
+                sent_formatted_timestamp = sent_timestamp.strftime("%dth %B, %Y at %H:%M")
+                log_message(f"Message sent at {sent_formatted_timestamp}, received at {rec_formatted_timestamp}")
             time.sleep(1)
 
     # Start the network monitor thread
-    threading.Thread(target=network_monitor, args=(email_address, email_password, recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number), daemon=True).start()
+    threading.Thread(target=network_monitor, args=(recipients, phone_numbers, twilio_sid, twilio_auth_token, twilio_phone_number), daemon=True).start()
     threading.Thread(target=main_loop, daemon=True).start()
 
 def stop_script():
@@ -159,8 +165,6 @@ def stop_script():
 
 def save_config():
     serial_port = serial_port_entry.get()
-    email_address = email_entry.get()
-    email_password = password_entry.get()
     recipients = recipients_entry.get().split(',')
     phone_numbers = phone_numbers_entry.get().split(',')
     twilio_sid = twilio_sid_entry.get()
@@ -168,13 +172,12 @@ def save_config():
     twilio_phone_number = twilio_phone_number_entry.get()
     config = {
         'serial_port': serial_port,
-        'email_address': email_address,
-        'email_password': email_password,
         'recipients': recipients,
         'phone_numbers': phone_numbers,
         'twilio_sid': twilio_sid,
         'twilio_auth_token': twilio_auth_token,
-        'twilio_phone_number': twilio_phone_number
+        'twilio_phone_number': twilio_phone_number,
+        'use_twilio': use_twilio.get()  # Save the checkbox state
     }
     with open(CONFIG_FILE, 'w') as file:
         json.dump(config, file, indent=4)
@@ -187,13 +190,12 @@ def load_config():
         return config
     return {
         'serial_port': DEFAULT_SERIAL_PORT,
-        'email_address': DEFAULT_EMAIL_ADDRESS,
-        'email_password': DEFAULT_EMAIL_PASSWORD,
         'recipients': DEFAULT_RECIPIENTS,
         'phone_numbers': DEFAULT_PHONE_NUMBERS,
         'twilio_sid': DEFAULT_TWILIO_SID,
         'twilio_auth_token': DEFAULT_TWILIO_AUTH_TOKEN,
-        'twilio_phone_number': DEFAULT_TWILIO_PHONE_NUMBER
+        'twilio_phone_number': DEFAULT_TWILIO_PHONE_NUMBER,
+        'use_twilio': False  # Default to email only
     }
 
 def on_start():
@@ -201,13 +203,12 @@ def on_start():
     config = load_config()
     start_script(
         config['serial_port'],
-        config['email_address'],
-        config['email_password'],
         config['recipients'],
         config['phone_numbers'],
         config['twilio_sid'],
         config['twilio_auth_token'],
-        config['twilio_phone_number']
+        config['twilio_phone_number'],
+        use_twilio.get()  # Pass the checkbox state
     )
 
 def on_stop():
@@ -216,25 +217,29 @@ def on_stop():
 # Check if the script should run without GUI
 if '--nogui' in sys.argv:
     config = load_config()
+    use_twilio = config.get('use_twilio', False)  # Use a regular boolean for no-GUI mode
     start_script(
         config['serial_port'],
-        config['email_address'],
-        config['email_password'],
         config['recipients'],
         config['phone_numbers'],
         config['twilio_sid'],
         config['twilio_auth_token'],
-        config['twilio_phone_number']
+        config['twilio_phone_number'],
+        use_twilio  # Pass the boolean directly
     )
     while True:
         time.sleep(1)
 else:
-    # Load configuration
-    config = load_config()
-
     # Create the main application window
     root = tk.Tk()
     root.title("Serial Message Processor")
+
+    # Initialize use_twilio after root window creation
+    use_twilio = tk.BooleanVar(value=False)
+
+    # Load configuration
+    config = load_config()
+    use_twilio.set(config.get('use_twilio', False))  # Set checkbox state after root window creation
 
     # Create tabs
     tab_control = ttk.Notebook(root)
@@ -262,51 +267,45 @@ else:
     serial_port_entry.grid(row=0, column=1, padx=10, pady=5, sticky='ew')
     serial_port_entry.insert(0, config['serial_port'])
 
-    # Email configuration
-    tk.Label(tab2, text="Email Address:").grid(row=1, column=0, padx=10, pady=5, sticky='w')
-    email_entry = tk.Entry(tab2)
-    email_entry.grid(row=1, column=1, padx=10, pady=5, sticky='ew')
-    email_entry.insert(0, config['email_address'])
-
-    tk.Label(tab2, text="Email Password:").grid(row=2, column=0, padx=10, pady=5, sticky='w')
-    password_entry = tk.Entry(tab2, show="*")
-    password_entry.grid(row=2, column=1, padx=10, pady=5, sticky='ew')
-    password_entry.insert(0, config['email_password'])
-
     # Recipients configuration
-    tk.Label(tab2, text="Recipients (comma separated):").grid(row=3, column=0, padx=10, pady=5, sticky='w')
+    tk.Label(tab2, text="Recipients (comma separated):").grid(row=1, column=0, padx=10, pady=5, sticky='w')
     recipients_entry = tk.Entry(tab2)
-    recipients_entry.grid(row=3, column=1, padx=10, pady=5, sticky='ew')
+    recipients_entry.grid(row=1, column=1, padx=10, pady=5, sticky='ew')
     recipients_entry.insert(0, ','.join(config['recipients']))
 
     # Phone numbers configuration
-    tk.Label(tab2, text="Phone Numbers (comma separated):").grid(row=4, column=0, padx=10, pady=5, sticky='w')
+    tk.Label(tab2, text="Phone Numbers (comma separated):").grid(row=2, column=0, padx=10, pady=5, sticky='w')
     phone_numbers_entry = tk.Entry(tab2)
-    phone_numbers_entry.grid(row=4, column=1, padx=10, pady=5, sticky='ew')
+    phone_numbers_entry.grid(row=2, column=1, padx=10, pady=5, sticky='ew')
     phone_numbers_entry.insert(0, ','.join(config['phone_numbers']))
 
     # Twilio configuration
-    tk.Label(tab2, text="Twilio SID:").grid(row=5, column=0, padx=10, pady=5, sticky='w')
+    tk.Label(tab2, text="Twilio SID:").grid(row=3, column=0, padx=10, pady=5, sticky='w')
     twilio_sid_entry = tk.Entry(tab2)
-    twilio_sid_entry.grid(row=5, column=1, padx=10, pady=5, sticky='ew')
+    twilio_sid_entry.grid(row=3, column=1, padx=10, pady=5, sticky='ew')
     twilio_sid_entry.insert(0, config['twilio_sid'])
 
-    tk.Label(tab2, text="Twilio Auth Token:").grid(row=6, column=0, padx=10, pady=5, sticky='w')
+    tk.Label(tab2, text="Twilio Auth Token:").grid(row=4, column=0, padx=10, pady=5, sticky='w')
     twilio_auth_token_entry = tk.Entry(tab2)
-    twilio_auth_token_entry.grid(row=6, column=1, padx=10, pady=5, sticky='ew')
+    twilio_auth_token_entry.grid(row=4, column=1, padx=10, pady=5, sticky='ew')
     twilio_auth_token_entry.insert(0, config['twilio_auth_token'])
 
-    tk.Label(tab2, text="Twilio Phone Number:").grid(row=7, column=0, padx=10, pady=5, sticky='w')
+    tk.Label(tab2, text="Twilio Phone Number:").grid(row=5, column=0, padx=10, pady=5, sticky='w')
     twilio_phone_number_entry = tk.Entry(tab2)
-    twilio_phone_number_entry.grid(row=7, column=1, padx=10, pady=5, sticky='ew')
+    twilio_phone_number_entry.grid(row=5, column=1, padx=10, pady=5, sticky='ew')
     twilio_phone_number_entry.insert(0, config['twilio_phone_number'])
+
+    # Add a checkbox to select the sending method
+    tk.Label(tab2, text="Send via Email + SMS (Twilio):").grid(row=6, column=0, padx=10, pady=5, sticky='w')
+    twilio_checkbox = tk.Checkbutton(tab2, variable=use_twilio)
+    twilio_checkbox.grid(row=6, column=1, padx=10, pady=5, sticky='w')
 
     # Save button
     save_button = tk.Button(tab2, text="Save Configuration", command=save_config)
-    save_button.grid(row=8, column=0, columnspan=2, padx=10, pady=10, sticky='ew')
+    save_button.grid(row=7, column=0, columnspan=2, padx=10, pady=10, sticky='ew')
 
     # Make the configuration fields expand horizontally
-    for i in range(8):
+    for i in range(6):
         tab2.grid_rowconfigure(i, weight=1)
         tab2.grid_columnconfigure(1, weight=1)
 
